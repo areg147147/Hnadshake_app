@@ -4,6 +4,7 @@ import { mutation, query } from './_generated/server'
 
 async function getAuthenticatedUserIdOrThrow(ctx: { auth: { getUserIdentity: () => Promise<{ subject?: string; tokenIdentifier: string } | null> } }) {
   const identity = await ctx.auth.getUserIdentity()
+  console.log('DEBUG auth identity:', JSON.stringify(identity))
   if (!identity) {
     throw new Error('Authentication required.')
   }
