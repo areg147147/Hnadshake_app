@@ -60,7 +60,7 @@ export function Home() {
             <Handshake className="h-4 w-4" />
             Handshake
           </div>
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Seal agreements with intent.</h1>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Seal agreements with intent. (Developed by Areg & Opus 4.6)</h1>
           <p className="mx-auto max-w-2xl text-muted-foreground">
             Negotiate live, revise terms transparently, and lock a pact forever only when both participants
             hold to seal at the same time.
