@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ShieldCheck } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -34,40 +34,84 @@ export function SealButton({
   const [isPressing, setIsPressing] = useState(false)
   const [isMutating, setIsMutating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const intervalRef = useRef<number | null>(null)
+  const tickIntervalRef = useRef<number | null>(null)
+
+  const [localProgress, setLocalProgress] = useState(0)
+  const localTimerRef = useRef<number | null>(null)
+  const progressStartRef = useRef<number | null>(null)
+  const baseOverlapRef = useRef(0)
+
+  const bothHolding = isCurrentUserHolding && counterpartHolding
+
+  useEffect(() => {
+    baseOverlapRef.current = overlapMs
+  }, [overlapMs])
+
+  useEffect(() => {
+    if (bothHolding && !isSealed) {
+      progressStartRef.current = performance.now()
+      baseOverlapRef.current = overlapMs
+
+      const animate = () => {
+        if (!progressStartRef.current) return
+        const elapsed = performance.now() - progressStartRef.current
+        const total = baseOverlapRef.current + elapsed
+        setLocalProgress(Math.min(total, REQUIRED_HOLD_MS))
+        localTimerRef.current = requestAnimationFrame(animate)
+      }
+      localTimerRef.current = requestAnimationFrame(animate)
+
+      return () => {
+        if (localTimerRef.current !== null) {
+          cancelAnimationFrame(localTimerRef.current)
+          localTimerRef.current = null
+        }
+      }
+    } else {
+      if (localTimerRef.current !== null) {
+        cancelAnimationFrame(localTimerRef.current)
+        localTimerRef.current = null
+      }
+      progressStartRef.current = null
+      if (!bothHolding) {
+        setLocalProgress(0)
+      }
+    }
+  }, [bothHolding, isSealed, overlapMs])
 
   useEffect(() => {
     return () => {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current)
+      if (tickIntervalRef.current !== null) {
+        window.clearInterval(tickIntervalRef.current)
       }
     }
   }, [])
 
   useEffect(() => {
     if (!isPressing || disabled || !canAttemptSeal || isSealed) {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current)
-        intervalRef.current = null
+      if (tickIntervalRef.current !== null) {
+        window.clearInterval(tickIntervalRef.current)
+        tickIntervalRef.current = null
       }
       return
     }
 
-    intervalRef.current = window.setInterval(() => {
+    tickIntervalRef.current = window.setInterval(() => {
       void onTick()
     }, 200)
 
     return () => {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current)
-        intervalRef.current = null
+      if (tickIntervalRef.current !== null) {
+        window.clearInterval(tickIntervalRef.current)
+        tickIntervalRef.current = null
       }
     }
   }, [canAttemptSeal, disabled, isPressing, isSealed, onTick])
 
-  const progress = useMemo(() => (overlapMs / REQUIRED_HOLD_MS) * 100, [overlapMs])
+  const displayMs = bothHolding ? localProgress : 0
+  const progress = (displayMs / REQUIRED_HOLD_MS) * 100
 
-  async function handlePressStart() {
+  const handlePressStart = useCallback(async () => {
     if (disabled || isMutating || !canAttemptSeal || isSealed) {
       return
     }
@@ -83,9 +127,9 @@ export function SealButton({
     } finally {
       setIsMutating(false)
     }
-  }
+  }, [canAttemptSeal, disabled, isMutating, isSealed, onStartHold, onTick])
 
-  async function handlePressEnd() {
+  const handlePressEnd = useCallback(async () => {
     if (!isPressing) {
       return
     }
@@ -97,7 +141,7 @@ export function SealButton({
     } catch (releaseError) {
       setError(releaseError instanceof Error ? releaseError.message : 'Failed to release hold')
     }
-  }
+  }, [isPressing, onReleaseHold])
 
   return (
     <Card>
@@ -124,7 +168,7 @@ export function SealButton({
         <div className="space-y-2">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>Overlap progress</span>
-            <span>{Math.max(0, Math.floor(overlapMs))} / 3000 ms</span>
+            <span>{Math.max(0, Math.floor(displayMs))} / 3000 ms</span>
           </div>
           <Progress value={progress} />
         </div>
